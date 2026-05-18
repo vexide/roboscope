@@ -27,3 +27,4 @@ static_assertions = "1.1.0"
 serde = { version = "1.0.228", features = ["derive"] }
 toml = "1.1.2"
 itertools = "0.14.0"
+socket2 = "0.6.3"

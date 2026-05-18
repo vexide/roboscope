@@ -10,7 +10,7 @@ members = ["ipc", "viewer", "simulator"]
 [dev-dependencies]
 embedded-graphics = { version = "0.8.2", default-features = false }
 tinybmp = "0.7.0"
-tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.22" }
 vex-sdk = "0.28.0"
 
 [target.'cfg(target_os = "vexos")'.dev-dependencies]

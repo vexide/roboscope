@@ -9,19 +9,14 @@
 //! ```
 
 use std::time::Duration;
-use tracing_subscriber::{EnvFilter, filter::LevelFilter};
+use tracing_subscriber::filter::LevelFilter;
 use vex_sdk::*;
 use vexide::{prelude::Peripherals, time::sleep};
 
 #[vexide::main]
 async fn main(_p: Peripherals) {
     tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::builder()
-                .with_default_directive(LevelFilter::INFO.into())
-                .from_env()
-                .unwrap(),
-        )
+        .with_max_level(LevelFilter::WARN)
         .init();
     vex_sdk_desktop::init().unwrap();
 

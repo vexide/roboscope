@@ -1,3 +1,5 @@
+use std::io;
+
 use iceoryx2::{
     node::NodeCreationFailure,
     port::{
@@ -10,6 +12,9 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum RoboscopeIpcError {
+    #[error(transparent)]
+    Io(#[from] io::Error),
+
     #[error("Failed to establish a new IPC node")]
     SetupNode(#[from] NodeCreationFailure),
 

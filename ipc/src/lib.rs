@@ -2,13 +2,16 @@
 
 #![allow(unused)]
 
-use std::fmt::Debug;
+use std::path::PathBuf;
+use std::{fmt::Debug, io};
 use std::mem::MaybeUninit;
 use std::sync::LazyLock;
 use std::time::Duration;
 
 use derive_more::{From, TryInto};
 use iceoryx2::prelude::*;
+use socket2::{Domain, SockAddr, Socket, Type};
+use tracing::{debug, info};
 
 use crate::{
     display::{DISPLAY_UPDATE_PERIOD, DisplayFrame, DisplayInput},
@@ -140,5 +143,58 @@ impl SimServices {
         }
 
         Ok(())
+    }
+
+    fn serial_path(port_idx: usize) -> PathBuf {
+        std::env::temp_dir().join(format!("roboscope-serialport{port_idx}.sock"))
+    }
+
+    /// Create a server which listens for connections from robot programs on a certain smart port.
+    ///
+    /// Robot programs can connect to the server via [`Self::connect_to_serial_device`].
+    pub fn create_serial_device(port_idx: usize) -> io::Result<Socket> {
+        let path = Self::serial_path(port_idx);
+        info!(
+            port_idx,
+            path = ?path.display(),
+            "Starting generic serial UNIX domain socket server"
+        );
+
+        // Clear up port from previous run.
+        _ = std::fs::remove_file(&path);
+
+        let mut socket = Socket::new(Domain::UNIX, Type::STREAM, None)?;
+        socket.bind(&SockAddr::unix(path)?)?;
+        socket.listen(128)?;
+
+        Ok(socket)
+    }
+
+    /// Connect to a serial device server that is listening for connections on the given smart port.
+    ///
+    /// You can create a peripheral that's compatible with this function using
+    /// [`Self::create_serial_device`].
+    ///
+    /// This function will connect to the UNIX domain socket at the following path, where `TMP` is
+    /// the platform's [temporary directory](std::env::temp_dir) and `N` is the zero-indexed port
+    /// number passed to this function:
+    /// ```text
+    /// TMP/roboscope-serialportN.sock
+    /// ```
+    ///
+    /// This behavior is consistent on Linux, macOS, and Windows. Unix domain sockets were chosen
+    /// because they're supported by all three platforms.
+    pub fn connect_to_serial_device(port_idx: usize) -> io::Result<Socket> {
+        let path = Self::serial_path(port_idx);
+        debug!(
+            port_idx,
+            path = ?path.display(),
+            "Connecting to generic serial UNIX domain socket server"
+        );
+
+        let mut socket = Socket::new(Domain::UNIX, Type::STREAM, None)?;
+        socket.connect(&SockAddr::unix(path)?)?;
+
+        Ok(socket)
     }
 }

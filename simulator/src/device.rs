@@ -54,13 +54,15 @@ use derive_more::{From, TryInto};
 use itertools::Itertools;
 use parking_lot::Mutex;
 use roboscope_ipc::{
-    Publisher, SMART_DEVICES_COUNT, Sample, SimServices, Subscriber, cmd::{DeviceCommand, RobotOutputs}, snapshot::{DeviceReadings, DeviceSnapshot, DistanceSnapshot, GenericSnapshot, MotorSnapshot}
+    Publisher, SMART_DEVICES_COUNT, Sample, SimServices, Subscriber,
+    cmd::{DeviceCommand, RobotOutputs},
+    snapshot::{DeviceReadings, DeviceSnapshot, DistanceSnapshot, GenericSnapshot, MotorSnapshot},
 };
 use static_assertions::const_assert_ne;
-use tracing::trace;
+use tracing::{debug, info, trace};
 use vex_sdk::{V5_DeviceT, V5_DeviceType};
 
-use crate::sdk::motor::MotorState;
+use crate::sdk::{generic_serial::GenericSerialState, motor::MotorState};
 
 pub(crate) static TIMESTAMP_EPOCH: LazyLock<SystemTime> = LazyLock::new(SystemTime::now);
 pub(crate) static DEVICES_STREAM: Mutex<Option<DevicesStream>> = Mutex::new(None);
@@ -112,7 +114,7 @@ impl Devices {
         // Some devices may need to be re-initialized as a different type if something new was
         // plugged in.
         for (device, snapshot) in self.smart_devices.iter_mut().zip(&sample.snapshots) {
-            device.set_type(snapshot.kind());
+            device.handle_physics_update(snapshot.kind());
         }
 
         self.readings = Some(sample);
@@ -203,7 +205,8 @@ impl DeviceResolvable for V5_DeviceT {
 }
 
 pub struct V5Device {
-    last_known_type: V5_DeviceType,
+    plugged_type: V5_DeviceType,
+    generic_serial: bool,
     state: V5DeviceState,
 }
 const_assert_ne!(size_of::<V5Device>(), 0); // Pointers to devices must be unique.
@@ -211,20 +214,46 @@ const_assert_ne!(size_of::<V5Device>(), 0); // Pointers to devices must be uniqu
 impl V5Device {
     pub const fn new() -> Self {
         Self {
-            last_known_type: V5_DeviceType::kDeviceTypeNoSensor,
+            plugged_type: V5_DeviceType::kDeviceTypeNoSensor,
             state: V5DeviceState::None(()),
+            generic_serial: false,
         }
     }
 
-    fn set_type(&mut self, kind: V5_DeviceType) {
-        // If the port is now connected to a concretely different kind of device, reset its state.
-        // TODO: Should state be preserved over disconnects?
-        if self.last_known_type == kind || kind == V5_DeviceType::kDeviceTypeNoSensor {
+    /// Enables generic serial mode.
+    ///
+    /// Ports that are in generic serial mode will periodically attempt to connect to a serial
+    /// peripheral made available via [`SimServices::create_serial_device`]. If successful, the
+    /// port's type will switch to [`V5_DeviceType::kDeviceTypeGenericSerial`] and users will be
+    /// able to send data to that serial device via the [`crate::sdk::generic_serial`] API.
+    pub fn set_generic_serial(&mut self, enabled: bool) {
+        if !enabled && self.generic_serial {
+            // Reset plugged type and state so the device doesn't show up as generic serial anymore.
+            *self = V5Device::new();
+            return;
+        }
+        self.generic_serial = enabled;
+    }
+
+    /// Handle new data from the physics sim.
+    ///
+    /// If this device is determined to hold to wrong kind of state for the given device type, its
+    /// [`V5DeviceState`] variant will be changed.
+    fn handle_physics_update(&mut self, new_type: V5_DeviceType) {
+        // Ports that have been configured as generic serial ignore data from the physics sim until
+        // they are [reset](Self::set_generic_serial).
+        if self.generic_serial {
             return;
         }
 
-        self.last_known_type = kind;
-        self.state = match kind {
+        // If the port is now connected to a concretely different kind of device, reset its state.
+        // TODO: Should state be preserved over disconnects?
+        if self.plugged_type == new_type || new_type == V5_DeviceType::kDeviceTypeNoSensor {
+            return;
+        }
+
+        self.plugged_type = new_type;
+        self.state = match new_type {
             V5_DeviceType::kDeviceTypeMotorSensor => MotorState::default().into(),
             _ => V5DeviceState::None(()),
         };
@@ -236,6 +265,7 @@ impl V5Device {
 pub enum V5DeviceState {
     None(()),
     Motor(MotorState),
+    GenericSerial(GenericSerialState),
 }
 
 impl Default for V5DeviceState {
@@ -281,6 +311,7 @@ impl HasDeviceCommand for V5DeviceState {
         match self {
             Self::None(v) => v.command(),
             Self::Motor(motor_state) => motor_state.command(),
+            Self::GenericSerial(generic_serial) => generic_serial.command(),
         }
     }
 }
@@ -291,7 +322,7 @@ impl HasDeviceCommand for () {
     }
 }
 
-/// Syncs the process's device registry with the latest data.
+/// Device data updater.
 #[derive(Debug)]
 pub struct DevicesStream {
     readings: Subscriber<DeviceReadings>,
@@ -304,10 +335,13 @@ impl DevicesStream {
         let readings = ipc.device_readings()?.subscriber_builder().create()?;
         let outputs = ipc.device_cmds()?.publisher_builder().create()?;
 
-        Ok(Self { readings, outputs })
+        Ok(Self {
+            readings,
+            outputs,
+        })
     }
 
-    /// Sync device readings and send commands.
+    /// Get the latest device readings, send commands, and flush buffers.
     pub(crate) fn update(&self) -> anyhow::Result<()> {
         let mut devices = DEVICES.lock();
 
@@ -326,6 +360,20 @@ impl DevicesStream {
             .unwrap();
 
         self.outputs.send_copy(RobotOutputs(cmds))?;
+
+        // Generic serial needs special handling because its data doesn't come from the physics sim.
+        for (port, device) in devices.smart_devices.iter_mut().enumerate() {
+            // For smart ports that *want* to be generic serial, but haven't been able to connect to
+            // a device yet, try to find a serial device to connect
+            if device.generic_serial
+                && device.plugged_type != V5_DeviceType::kDeviceTypeGenericSerial
+                && let Ok(state) = GenericSerialState::new(port)
+            {
+                info!(port, "Generic serial connection found a device and is ready to go!");
+                device.plugged_type = V5_DeviceType::kDeviceTypeGenericSerial;
+                device.state = state.into();
+            }
+        }
 
         Ok(())
     }

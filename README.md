@@ -49,6 +49,16 @@ cargo install --git https://github.com/lewisfm/vex-simulation roboscope-viewer
 
 Then run `roboscope-viewer` while your program is running.
 
+> [!TIP]
+> RoboScope logs warnings via `tracing` if something isn't supported. You should enable a logger so
+> you see them!
+>
+> ```rs
+> tracing_subscriber::fmt()
+>     .with_max_level(LevelFilter::WARN)
+>     .init();
+> ```
+
 ## Configuration
 
 The file `v5sim.toml` is optionally read from the current directory for simulator configuration.
