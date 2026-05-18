@@ -1,11 +1,11 @@
-//! Motor device example.
+//! Custom serial device example.
 //!
-//! This example works well with the "simple-motor" physics server example. You should run it at the
-//! same time (in a 2nd terminal window) if you'd like to see the motor move:
+//! This example works well with the "serial-device" IPC example. You should run it at the same time
+//! (in a 2nd terminal window) if you'd like the robot program to actually connect to anything.
 //!
 //! ```sh
 //! cd ipc
-//! cargo run --example simple-motor
+//! cargo run --example serial-device
 //! ```
 
 use std::time::Duration;
