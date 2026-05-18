@@ -99,15 +99,40 @@ is the `display` example).
 
 - Accurate display emulation with mouse input and text rendering
 - Connect to an [external physics simulator] or display viewer app
-- Complete motor and distance sensor APIs
 - Compatible with vexide programs and libraries
 
 [external physics simulator]: ./docs/tutorial-physics-sim.md
 
-What's left:
+### API support
 
-- Wiring up the device APIs to the IPC library so you can send simulated sensor
-readings to your brain simulator and control.
+Supported (requires a viewer app):
+
+- [x] Display API
+- [x] Touch API
+
+Supported (bring your own [physics simulator](./docs/tutorial-physics-sim.md)):
+
+- [x] Smart Devices API
+- [x] Motors API
+- [x] Distance Sensors API
+
+Supported (bring your own [serial device simulator](./ipc/examples/serial-device.rs)):
+
+- [x] Generic Serial (SerialPort) API
+
+Unsupported (returns dummy values only):
+
+- [ ] Other smart device APIs
+- [ ] ADI ports and ADI expanders
+- [ ] Competition API
+- [ ] Filesystem API (consider using `std::fs`)
+- [ ] Controller API
+- [ ] System API
+- [ ] Task API (system tasks OK, user tasks unsupported)
+
+### What's left
+
+- Wiring up the remaining device APIs to an external physics simulator
 - Adding an integration with vexide_startup
 
 ## Usage
