@@ -151,6 +151,9 @@ impl SimServices {
 
     /// Create a server which listens for connections from robot programs on a certain smart port.
     ///
+    /// Call [`Socket::accept`] to wait for a robot to connect, then write to or read from the
+    /// socket that function returns to communicate with a robot program.
+    ///
     /// Robot programs can connect to the server via [`Self::connect_to_serial_device`].
     pub fn create_serial_device(port_idx: usize) -> io::Result<Socket> {
         let path = Self::serial_path(port_idx);
