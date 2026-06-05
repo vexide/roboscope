@@ -545,9 +545,12 @@ pub unsafe extern "system" fn vexDeviceMotorPositionRawGet(
             raw_position *= -1;
         }
 
-        unsafe {
-            *timestamp = ctx.readings_timestamp();
+        if !timestamp.is_null() {
+            unsafe {
+                *timestamp = ctx.readings_timestamp();
+            }
         }
+
         raw_position
     } else {
         warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
