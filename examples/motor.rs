@@ -35,7 +35,7 @@ async fn main(_p: Peripherals) {
 
         let motor = vexDeviceGetByIndex(0);
         vexDeviceMotorVoltageSet(motor, 12_000);
-        vexDeviceMotorEncoderUnitsSet(motor, V5MotorEncoderUnits::kMotorEncoderCounts);
+        vexDeviceMotorEncoderUnitsSet(motor, V5MotorEncoderUnits::kMotorEncoderDegrees);
 
         loop {
             let encoder_reading = vexDeviceMotorPositionGet(motor);

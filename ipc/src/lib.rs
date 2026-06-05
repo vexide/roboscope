@@ -1,7 +1,5 @@
 //! Data transfer layer for Roboscope
 
-#![allow(unused)]
-
 use std::path::PathBuf;
 use std::{fmt::Debug, io};
 use std::mem::MaybeUninit;
@@ -43,13 +41,11 @@ pub struct SimServices {
 
 impl SimServices {
     pub fn join(name: Option<&str>, config: &Config) -> SimResult<Self> {
-        let node = NodeBuilder::new().config(&Config::default());
+        let node = NodeBuilder::new().config(config);
         SimServices::custom(name, node)
     }
 
-    pub fn custom(name: Option<&str>, builder: NodeBuilder) -> SimResult<Self> {
-        let mut node = NodeBuilder::new().config(&Config::default());
-
+    pub fn custom(name: Option<&str>, mut node: NodeBuilder) -> SimResult<Self> {
         if let Some(name) = name {
             let fmted_name = format!("roboscope.{name}");
             node = node.name(&NodeName::new(&fmted_name).expect("name valid"));
