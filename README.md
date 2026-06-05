@@ -161,3 +161,16 @@ cargo run -p roboscope-ipc --example oscillator
 ## Troubleshooting
 
 If you get a stack overflow, make sure that your display drawing code is not allocating any large arrays on the stack. The VEX V5 has a very large stack compared to most operating systems.
+
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0
+
+  ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license
+
+  ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+
+at your option.
