@@ -84,7 +84,7 @@ impl MotorState {
         match self.position_units {
             PositionUnits::Ticks => 1.0,
             PositionUnits::Rotations => rotations_multipler,
-            PositionUnits::Degrees => rotations_multipler / 360.0,
+            PositionUnits::Degrees => rotations_multipler * 360.0,
         }
     }
 }
