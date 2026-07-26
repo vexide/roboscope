@@ -1,10 +1,10 @@
 //! Data transfer layer for Roboscope
 
-use std::path::PathBuf;
-use std::{fmt::Debug, io};
 use std::mem::MaybeUninit;
+use std::path::PathBuf;
 use std::sync::LazyLock;
 use std::time::Duration;
+use std::{fmt::Debug, io};
 
 use derive_more::{From, TryInto};
 use iceoryx2::prelude::*;

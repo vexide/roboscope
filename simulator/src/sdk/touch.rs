@@ -31,8 +31,7 @@ pub unsafe extern "system" fn vexTouchDataGet(status: *mut V5_TouchStatus) {
     }
 }
 
-pub(crate) static TOUCH_SUBSCRIBER: Mutex<Option<Subscriber<DisplayInput>>> =
-    Mutex::new(None);
+pub(crate) static TOUCH_SUBSCRIBER: Mutex<Option<Subscriber<DisplayInput>>> = Mutex::new(None);
 pub(crate) fn update_touch_status() {
     let mut display = DISPLAY.lock();
 

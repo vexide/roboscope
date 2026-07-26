@@ -1,4 +1,7 @@
-use std::{collections::HashSet, sync::{LazyLock, OnceLock}};
+use std::{
+    collections::HashSet,
+    sync::{LazyLock, OnceLock},
+};
 
 use serde::Deserialize;
 

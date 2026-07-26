@@ -39,7 +39,7 @@ use vex_sdk::{V5_DeviceT, V5_DeviceType};
 
 use crate::{
     device::{DEVICES, DeviceResolvable, HasDeviceCommand},
-    sdk::{warn_unknown_enum, warn_once, warn_unplugged},
+    sdk::{warn_once, warn_unknown_enum, warn_unplugged},
 };
 
 #[derive(Debug, Default)]
@@ -136,7 +136,7 @@ pub extern "system" fn vexDeviceMotorVelocitySet(device: V5_DeviceT, velocity: i
         // TODO: store user requested velocity separately from actual velocity target
         state.cmd.target_velocity = velocity;
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
     }
 }
 
@@ -150,7 +150,7 @@ pub extern "system" fn vexDeviceMotorVelocityGet(device: V5_DeviceT) -> i32 {
     if let Some((readings, state)) = ctx.resolve::<MotorSnapshot>(device) {
         state.cmd.target_velocity
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         0
     }
 }
@@ -170,7 +170,7 @@ pub extern "system" fn vexDeviceMotorActualVelocityGet(device: V5_DeviceT) -> c_
 
         adjusted_rpm
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         0.0
     }
 }
@@ -195,7 +195,7 @@ pub extern "system" fn vexDeviceMotorDirectionGet(device: V5_DeviceT) -> i32 {
 
         velocity.signum()
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         0
     }
 }
@@ -212,7 +212,7 @@ pub extern "system" fn vexDeviceMotorModeSet(device: V5_DeviceT, mode: V5MotorCo
     if let Some(state) = ctx.state_for::<MotorState>(device) {
         state.cmd.mode = mode;
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
     }
 }
 
@@ -231,7 +231,7 @@ pub extern "system" fn vexDeviceMotorModeGet(device: V5_DeviceT) -> V5MotorContr
             .try_into()
             .unwrap_or(V5MotorControlMode::kMotorControlModeUNDEFINED)
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         V5MotorControlMode::kMotorControlModeUNDEFINED
     }
 }
@@ -260,7 +260,7 @@ pub extern "system" fn vexDeviceMotorPwmSet(device: V5_DeviceT, pwm: i32) {
         state.cmd.mode = MotorControlMode::Pwm;
         state.cmd.pwm = actual_pwm;
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
     }
 }
 
@@ -274,7 +274,7 @@ pub extern "system" fn vexDeviceMotorPwmGet(device: V5_DeviceT) -> i32 {
     if let Some(state) = ctx.state_for::<MotorState>(device) {
         state.cmd.pwm
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         0
     }
 }
@@ -287,7 +287,7 @@ pub extern "system" fn vexDeviceMotorCurrentLimitSet(device: V5_DeviceT, limit: 
     if let Some(state) = ctx.state_for::<MotorState>(device) {
         state.cmd.current_limit = limit;
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
     }
 }
 
@@ -301,7 +301,7 @@ pub extern "system" fn vexDeviceMotorCurrentLimitGet(device: V5_DeviceT) -> i32 
     if let Some(state) = ctx.state_for::<MotorState>(device) {
         state.cmd.current_limit
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         0
     }
 }
@@ -314,7 +314,7 @@ pub extern "system" fn vexDeviceMotorCurrentGet(device: V5_DeviceT) -> i32 {
     if let Some((snapshot, _)) = ctx.resolve::<MotorSnapshot>(device) {
         snapshot.current
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         0
     }
 }
@@ -326,7 +326,7 @@ pub extern "system" fn vexDeviceMotorPowerGet(device: V5_DeviceT) -> c_double {
     if let Some((snapshot, _)) = ctx.resolve::<MotorSnapshot>(device) {
         snapshot.power
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         0.0
     }
 }
@@ -339,7 +339,7 @@ pub extern "system" fn vexDeviceMotorTorqueGet(device: V5_DeviceT) -> c_double {
     if let Some((snapshot, _)) = ctx.resolve::<MotorSnapshot>(device) {
         snapshot.torque
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         0.0
     }
 }
@@ -352,7 +352,7 @@ pub extern "system" fn vexDeviceMotorEfficiencyGet(device: V5_DeviceT) -> c_doub
     if let Some((snapshot, _)) = ctx.resolve::<MotorSnapshot>(device) {
         snapshot.efficiency
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         0.0
     }
 }
@@ -365,7 +365,7 @@ pub extern "system" fn vexDeviceMotorTemperatureGet(device: V5_DeviceT) -> c_dou
     if let Some((snapshot, _)) = ctx.resolve::<MotorSnapshot>(device) {
         snapshot.temperature as f64
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         0.0
     }
 }
@@ -377,7 +377,7 @@ pub extern "system" fn vexDeviceMotorOverTempFlagGet(device: V5_DeviceT) -> bool
     if let Some((snapshot, _)) = ctx.resolve::<MotorSnapshot>(device) {
         snapshot.faults.contains(MotorFaults::OVER_TEMPERATURE)
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         false
     }
 }
@@ -388,7 +388,7 @@ pub extern "system" fn vexDeviceMotorCurrentLimitFlagGet(device: V5_DeviceT) -> 
     if let Some((snapshot, _)) = ctx.resolve::<MotorSnapshot>(device) {
         snapshot.faults.contains(MotorFaults::OVER_CURRENT)
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         false
     }
 }
@@ -399,7 +399,7 @@ pub extern "system" fn vexDeviceMotorZeroVelocityFlagGet(device: V5_DeviceT) -> 
     if let Some((snapshot, _)) = ctx.resolve::<MotorSnapshot>(device) {
         snapshot.flags.contains(MotorStatus::ZERO_VELOCITY)
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         false
     }
 }
@@ -411,7 +411,7 @@ pub extern "system" fn vexDeviceMotorZeroPositionFlagGet(device: V5_DeviceT) -> 
     if let Some((snapshot, _)) = ctx.resolve::<MotorSnapshot>(device) {
         snapshot.flags.contains(MotorStatus::ZERO_POSITION)
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         false
     }
 }
@@ -422,7 +422,7 @@ pub extern "system" fn vexDeviceMotorReverseFlagSet(device: V5_DeviceT, reverse:
     if let Some(state) = ctx.state_for::<MotorState>(device) {
         state.is_reversed = reverse;
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
     }
 }
 
@@ -432,7 +432,7 @@ pub extern "system" fn vexDeviceMotorReverseFlagGet(device: V5_DeviceT) -> bool 
     if let Some(state) = ctx.state_for::<MotorState>(device) {
         state.is_reversed
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         false
     }
 }
@@ -451,7 +451,7 @@ pub extern "system" fn vexDeviceMotorEncoderUnitsSet(
     if let Some(state) = ctx.state_for::<MotorState>(device) {
         state.position_units = units;
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
     }
 }
 
@@ -461,7 +461,7 @@ pub extern "system" fn vexDeviceMotorEncoderUnitsGet(device: V5_DeviceT) -> V5Mo
     if let Some(state) = ctx.state_for::<MotorState>(device) {
         state.position_units.into()
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         PositionUnits::default().into()
     }
 }
@@ -477,7 +477,7 @@ pub extern "system" fn vexDeviceMotorBrakeModeSet(device: V5_DeviceT, mode: V5Mo
     if let Some(state) = ctx.state_for::<MotorState>(device) {
         state.cmd.brake_mode = mode;
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
     }
 }
 
@@ -487,7 +487,7 @@ pub extern "system" fn vexDeviceMotorBrakeModeGet(device: V5_DeviceT) -> V5Motor
     if let Some(state) = ctx.state_for::<MotorState>(device) {
         state.cmd.brake_mode.into()
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         MotorBrakeMode::default().into()
     }
 }
@@ -508,7 +508,7 @@ pub extern "system" fn vexDeviceMotorPositionSet(device: V5_DeviceT, position: c
 
         state.zero_point = desired_pos_ticks - real_pos;
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
     }
 }
 
@@ -518,7 +518,7 @@ pub extern "system" fn vexDeviceMotorPositionGet(device: V5_DeviceT) -> c_double
     if let Some((snapshot, state)) = ctx.resolve::<MotorSnapshot>(device) {
         state.process_position(snapshot.raw_position)
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         0.0
     }
 }
@@ -553,7 +553,7 @@ pub unsafe extern "system" fn vexDeviceMotorPositionRawGet(
 
         raw_position
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         0
     }
 }
@@ -569,7 +569,7 @@ pub extern "system" fn vexDeviceMotorPositionReset(device: V5_DeviceT) {
 
         state.zero_point = current_pos;
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
     }
 }
 
@@ -579,7 +579,7 @@ pub extern "system" fn vexDeviceMotorTargetGet(device: V5_DeviceT) -> c_double {
     if let Some((snapshot, state)) = ctx.resolve::<MotorSnapshot>(device) {
         state.process_position(state.cmd.target_position)
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         0.0
     }
 }
@@ -613,7 +613,7 @@ pub extern "system" fn vexDeviceMotorAbsoluteTargetSet(
         state.cmd.mode = MotorControlMode::Position;
         state.cmd.target_position = position_ticks;
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
     }
 }
 
@@ -641,7 +641,7 @@ pub extern "system" fn vexDeviceMotorRelativeTargetSet(
         state.cmd.mode = MotorControlMode::Position;
         state.cmd.target_position = position_ticks;
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
     }
 }
 
@@ -651,7 +651,7 @@ pub extern "system" fn vexDeviceMotorFaultsGet(device: V5_DeviceT) -> u32 {
     if let Some((snapshot, _)) = ctx.resolve::<MotorSnapshot>(device) {
         snapshot.faults.0
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         0
     }
 }
@@ -662,7 +662,7 @@ pub extern "system" fn vexDeviceMotorFlagsGet(device: V5_DeviceT) -> u32 {
     if let Some((snapshot, _)) = ctx.resolve::<MotorSnapshot>(device) {
         snapshot.flags.0
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         0
     }
 }
@@ -687,7 +687,7 @@ pub extern "system" fn vexDeviceMotorVoltageSet(device: V5_DeviceT, voltage: i32
         state.cmd.mode = MotorControlMode::Pwm;
         state.cmd.pwm = actual_voltage;
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
     }
 }
 
@@ -701,7 +701,7 @@ pub extern "system" fn vexDeviceMotorVoltageGet(device: V5_DeviceT) -> i32 {
         }
         voltage
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         0
     }
 }
@@ -717,7 +717,7 @@ pub extern "system" fn vexDeviceMotorGearingSet(device: V5_DeviceT, gearset: V5M
     if let Some(state) = ctx.state_for::<MotorState>(device) {
         state.gearset = gearset;
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
     }
 }
 
@@ -727,7 +727,7 @@ pub extern "system" fn vexDeviceMotorGearingGet(device: V5_DeviceT) -> V5MotorGe
     if let Some(state) = ctx.state_for::<MotorState>(device) {
         state.gearset.to_v5()
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         MotorGearset::default().to_v5()
     }
 }
@@ -746,7 +746,7 @@ pub extern "system" fn vexDeviceMotorVoltageLimitSet(device: V5_DeviceT, limit: 
 
         state.voltage_limit = limit;
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
     }
 }
 
@@ -756,7 +756,7 @@ pub extern "system" fn vexDeviceMotorVoltageLimitGet(device: V5_DeviceT) -> i32 
     if let Some(state) = ctx.state_for::<MotorState>(device) {
         state.voltage_limit
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         0
     }
 }
@@ -772,7 +772,7 @@ pub extern "system" fn vexDeviceMotorVelocityUpdate(device: V5_DeviceT, mut velo
         state.cmd.mode = MotorControlMode::Velocity;
         state.cmd.target_velocity = velocity;
     } else {
-        warn_unplugged(device, V5_DeviceType::kDeviceTypeMotorSensor);
+        warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
     }
 }
 

@@ -13,7 +13,9 @@ use tracing::trace;
 pub use vex_sdk::v5_image;
 
 use crate::{
-    canvas::{CANVAS, Canvas, DEFAULT_BLACK, DEFAULT_WHITE, HEADER_HEIGHT, Point, Rect, WIDTH}, config::DisplayTheme, display::{DISPLAY, SimDisplay}
+    canvas::{CANVAS, Canvas, DEFAULT_BLACK, DEFAULT_WHITE, HEADER_HEIGHT, Point, Rect, WIDTH},
+    config::DisplayTheme,
+    display::{DISPLAY, SimDisplay},
 };
 
 /// Set the foreground color.

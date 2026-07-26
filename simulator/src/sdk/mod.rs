@@ -44,7 +44,7 @@ use vex_sdk::{V5_DeviceT, V5_DeviceType};
 
 use crate::{
     config::{Warning, config},
-    device::{DEVICES, DeviceResolvable},
+    device::{DEVICES, DeviceResolvable, Devices},
 };
 
 unsafe extern "C" {
@@ -79,13 +79,14 @@ macro_rules! warn_once {
 }
 use warn_once;
 
+/// Warn that a missing device was accessed.
 #[track_caller]
-fn warn_unplugged(device: V5_DeviceT, expected: V5_DeviceType) {
+fn warn_unplugged(devices: &Devices, device: V5_DeviceT, expected: V5_DeviceType) {
     if !config()
         .suppress_warnings
         .contains(&Warning::MissingDevices)
     {
-        let port = device.to_port(&DEVICES.lock());
+        let port = device.to_port(devices);
         warn!(expected = %device_name(expected), port, "Tried to control a missing smart device");
     }
 }

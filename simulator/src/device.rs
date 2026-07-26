@@ -335,10 +335,7 @@ impl DevicesStream {
         let readings = ipc.device_readings()?.subscriber_builder().create()?;
         let outputs = ipc.device_cmds()?.publisher_builder().create()?;
 
-        Ok(Self {
-            readings,
-            outputs,
-        })
+        Ok(Self { readings, outputs })
     }
 
     /// Get the latest device readings, send commands, and flush buffers.
@@ -369,7 +366,10 @@ impl DevicesStream {
                 && device.plugged_type != V5_DeviceType::kDeviceTypeGenericSerial
                 && let Ok(state) = GenericSerialState::new(port)
             {
-                info!(port, "Generic serial connection found a device and is ready to go!");
+                info!(
+                    port,
+                    "Generic serial connection found a device and is ready to go!"
+                );
                 device.plugged_type = V5_DeviceType::kDeviceTypeGenericSerial;
                 device.state = state.into();
             }
