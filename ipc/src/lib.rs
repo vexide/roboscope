@@ -2,18 +2,16 @@
 
 use std::mem::MaybeUninit;
 use std::path::PathBuf;
-use std::sync::LazyLock;
 use std::time::Duration;
 use std::{fmt::Debug, io};
 
-use derive_more::{From, TryInto};
 use iceoryx2::prelude::*;
 use socket2::{Domain, SockAddr, Socket, Type};
 use tracing::{debug, info};
 
 use crate::{
     display::{DISPLAY_UPDATE_PERIOD, DisplayFrame, DisplayInput},
-    error::{RoboscopeIpcError, SimResult},
+    error::SimResult,
 };
 
 // Aliases for the kind of IPC types we use.
@@ -162,7 +160,7 @@ impl SimServices {
         // Clear up port from previous run.
         _ = std::fs::remove_file(&path);
 
-        let mut socket = Socket::new(Domain::UNIX, Type::STREAM, None)?;
+        let socket = Socket::new(Domain::UNIX, Type::STREAM, None)?;
         socket.bind(&SockAddr::unix(path)?)?;
         socket.listen(128)?;
 
@@ -191,7 +189,7 @@ impl SimServices {
             "Connecting to generic serial UNIX domain socket server"
         );
 
-        let mut socket = Socket::new(Domain::UNIX, Type::STREAM, None)?;
+        let socket = Socket::new(Domain::UNIX, Type::STREAM, None)?;
         socket.connect(&SockAddr::unix(path)?)?;
 
         Ok(socket)

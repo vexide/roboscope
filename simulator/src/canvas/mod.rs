@@ -70,11 +70,6 @@ impl CanvasState {
         self.clip_region = region;
     }
 
-    /// Get the current clip region of the
-    pub fn clip_region(&self) -> Rect {
-        self.clip_region
-    }
-
     /// Set the current font by name.
     ///
     /// If the font doesn't exist, this function is a no-op.
@@ -93,7 +88,6 @@ pub struct Canvas {
     text_buffer: Box<[u8; TEXT_BUFSZ]>,
     theme: DisplayTheme,
     pub state: CanvasState,
-    pub saved_state: CanvasState,
 }
 
 impl Canvas {
@@ -115,7 +109,6 @@ impl Canvas {
             // Allocate directly on the heap to prevent a stack overflow.
             buffer: vec![0u32; BUFSZ].into_boxed_slice().try_into().unwrap(),
             text_buffer: vec![0u8; TEXT_BUFSZ].into_boxed_slice().try_into().unwrap(),
-            saved_state: state.clone(),
             state,
             theme,
         }
@@ -123,14 +116,6 @@ impl Canvas {
 
     pub const fn theme(&self) -> DisplayTheme {
         self.theme
-    }
-
-    pub fn save(&mut self) {
-        self.saved_state = self.state.clone();
-    }
-
-    pub fn restore(&mut self) {
-        self.state = self.saved_state.clone();
     }
 
     /// Set the given pixel to the foreground color.
@@ -622,16 +607,8 @@ impl SimImage {
         }
     }
 
-    pub fn height(&self) -> i32 {
-        self.height as i32
-    }
-
     pub fn width(&self) -> i32 {
         self.width as i32
-    }
-
-    pub fn buffer(&self) -> &[u32] {
-        &self.pixels
     }
 
     pub fn draw(&self, canvas: &mut Canvas, origin: Point) {

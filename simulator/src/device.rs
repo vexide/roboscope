@@ -59,7 +59,7 @@ use roboscope_ipc::{
     snapshot::{DeviceReadings, DeviceSnapshot, DistanceSnapshot, GenericSnapshot, MotorSnapshot},
 };
 use static_assertions::const_assert_ne;
-use tracing::{debug, info, trace};
+use tracing::{info, trace};
 use vex_sdk::{V5_DeviceT, V5_DeviceType};
 
 use crate::sdk::{generic_serial::GenericSerialState, motor::MotorState};
