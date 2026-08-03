@@ -11,7 +11,7 @@ pub use vex_sdk::{V5_ControllerId, V5_ControllerIndex, V5_ControllerStatus};
 
 use crate::{config::{Warning, config}, sdk::{warn_unknown_enum, sdk_unimplemented}};
 
-static STREAM: Mutex<Option<ControllerStream>> = Mutex::new(None);
+pub(crate) static STREAM: Mutex<Option<ControllerStream>> = Mutex::new(None);
 
 /// Receives controller data from an external source.
 pub struct ControllerStream {

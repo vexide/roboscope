@@ -10,6 +10,7 @@ use crate::{
     canvas::HEADER_HEIGHT,
     device::{DEVICES, DEVICES_STREAM},
     display::DISPLAY,
+    sdk::controller::STREAM as CONTROLLER_STREAM,
 };
 
 #[unsafe(no_mangle)]
@@ -71,10 +72,11 @@ impl Task {
     }
 }
 
-static TASKS: Mutex<[Task; 1]> = Mutex::new([
+static TASKS: Mutex<[Task; 2]> = Mutex::new([
     // Should this be a task? I'm not sure if touch data updates automatically.
     // Task::new(update_touch_status, Duration::from_millis(10)),
     Task::new(update_device_readings, Duration::from_millis(10)),
+    Task::new(update_controller_input, Duration::from_millis(10)),
 ]);
 
 pub fn update_device_readings() {
@@ -82,6 +84,15 @@ pub fn update_device_readings() {
         let result = stream.update();
         if let Err(error) = result {
             tracing::error!(%error, "Failed to update devices");
+        }
+    }
+}
+
+pub fn update_controller_input() {
+    if let Some(stream) = &mut *CONTROLLER_STREAM.lock() {
+        let result = stream.update();
+        if let Err(error) = result {
+            tracing::error!(%error, "Failed to update controller input");
         }
     }
 }

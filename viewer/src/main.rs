@@ -7,23 +7,30 @@ use std::{
 };
 
 use anyhow::{Context as _, Result, anyhow};
+use clap::Parser;
 use fast_image_resize::{
     ResizeAlg, ResizeOptions, Resizer,
     images::{TypedImage, TypedImageRef},
     pixels::U8x4,
 };
-use iceoryx2::{node::NodeBuilder, signal_handling_mode::SignalHandlingMode};
+use iceoryx2::{
+    node::NodeBuilder, port::update_connections::UpdateConnections,
+    signal_handling_mode::SignalHandlingMode,
+};
 use roboscope_ipc::{
-    Config, Publisher, Sample, SimServices, Subscriber,
+    Config, Publisher, SimServices, Subscriber,
     display::{DISPLAY_HEIGHT, DISPLAY_WIDTH, DisplayFrame, DisplayInput, DisplayInputKind},
+    snapshot::{ControllerConnection, ControllerInput, ControllerState},
 };
 use softbuffer::{Context, Surface};
 use tracing::{debug, error, trace};
 use winit::{
     application::ApplicationHandler,
     dpi::LogicalSize,
-    event::{MouseButton, StartCause, WindowEvent},
+    event::{ElementState, KeyEvent, MouseButton, StartCause, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop, OwnedDisplayHandle},
+    keyboard::{KeyCode, PhysicalKey},
+    platform::modifier_supplement::KeyEventExtModifierSupplement,
     window::{Theme, Window, WindowId},
 };
 
@@ -34,24 +41,42 @@ const WINDOW_SIZE: LogicalSize<f64> = LogicalSize::new(480.0, 272.0);
 
 type DisplayCtx = Context<OwnedDisplayHandle>;
 
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    /// Provide virtual V5 Controller input, simulating the given medium.
+    #[arg(long)]
+    ctrl: Option<ControllerSource>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+enum ControllerSource {
+    /// Interpret keyboard input as controller inputs.
+    ///
+    /// # Keybindings
+    Keyboard,
+}
+
 enum ViewerEvent {
     Shutdown,
 }
 
 fn main() -> Result<()> {
-    ViewerApp::start()
+    let args = Cli::parse();
+    ViewerApp::start(args)
 }
 
-pub struct ViewerApp {
+struct ViewerApp {
     sim_display: Option<SimDisplayWindow>,
     context: DisplayCtx,
     last_frame_time: Option<Instant>,
     subscriber: Option<Subscriber<DisplayFrame>>,
     publisher: Option<Publisher<DisplayInput>>,
+    controller: Option<ControllerHandler>,
 }
 
 impl ViewerApp {
-    pub fn start() -> Result<()> {
+    fn start(args: Cli) -> Result<()> {
         let builder = NodeBuilder::new()
             .config(&Config::default())
             .signal_handling_mode(SignalHandlingMode::Disabled);
@@ -69,6 +94,11 @@ impl ViewerApp {
 
         let display = event_loop.owned_display_handle();
         let mut simulator = ViewerApp::new(display, subscriber, publisher)?;
+
+        if let Some(source) = args.ctrl {
+            simulator.controller = Some(ControllerHandler::new(&ipc, source)?);
+        }
+
         event_loop.run_app(&mut simulator)?;
 
         Ok(())
@@ -89,6 +119,7 @@ impl ViewerApp {
             last_frame_time: None,
             subscriber: Some(subscriber),
             publisher: Some(publisher),
+            controller: None,
         })
     }
 
@@ -146,6 +177,13 @@ impl ApplicationHandler<ViewerEvent> for ViewerApp {
                 if let Some(d) = &mut self.sim_display {
                     d.recv_frame();
                 }
+
+                // Deliver the retained controller state to programs which started after the viewer.
+                if let Some(controller) = &mut self.controller
+                    && let Err(error) = controller.publish_history()
+                {
+                    error!(%error, "Failed to deliver controller input history");
+                }
             }
             _ => {}
         }
@@ -157,10 +195,11 @@ impl ApplicationHandler<ViewerEvent> for ViewerApp {
         window_id: WindowId,
         event: WindowEvent,
     ) {
-        if let Some(sim_display) = &mut self.sim_display
+        if let Some(mut sim_display) = self.sim_display.take()
             && window_id == sim_display.window_id()
         {
-            sim_display.handle_event(event_loop, event);
+            sim_display.handle_event(self, event_loop, event);
+            self.sim_display = Some(sim_display);
         }
     }
 }
@@ -224,7 +263,12 @@ impl SimDisplayWindow {
     }
 
     /// Handle an event sent to this window.
-    pub fn handle_event(&mut self, event_loop: &ActiveEventLoop, event: WindowEvent) {
+    fn handle_event(
+        &mut self,
+        app: &mut ViewerApp,
+        event_loop: &ActiveEventLoop,
+        event: WindowEvent,
+    ) {
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
@@ -308,6 +352,13 @@ impl SimDisplayWindow {
                     )
                     .unwrap();
             }
+            WindowEvent::KeyboardInput { event, .. } => {
+                if let Some(controller) = &mut app.controller
+                    && let Err(error) = controller.keyboard_input(event)
+                {
+                    error!(?error, "Failed to publish key input");
+                }
+            }
             _ => {}
         }
     }
@@ -370,5 +421,180 @@ impl SimDisplayWindow {
         }
 
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Axis {
+    LeftX,
+    LeftY,
+    RightX,
+    RightY,
+}
+
+struct ControllerHandler {
+    publisher: Publisher<ControllerInput>,
+    source: ControllerSource,
+    states: ControllerInput,
+    kbd_is_partner: bool,
+    /// The axis directions currently being held, in the order they were pressed.
+    held_directions: Vec<(Axis, bool)>,
+}
+
+impl ControllerHandler {
+    pub fn new(ipc: &SimServices, source: ControllerSource) -> Result<Self> {
+        let publisher = ipc.controller_input()?.publisher_builder().create()?;
+
+        let mut handler = Self {
+            publisher,
+            source,
+            states: ControllerInput::default(),
+            kbd_is_partner: false,
+            held_directions: Vec::new(),
+        };
+
+        handler.refresh_connections();
+        handler.publish()?;
+
+        Ok(handler)
+    }
+
+    /// Marks the controller which is currently being driven as connected, and the other as offline.
+    fn refresh_connections(&mut self) {
+        let (connected, offline) = if self.kbd_is_partner {
+            (&mut self.states.partner, &mut self.states.primary)
+        } else {
+            (&mut self.states.primary, &mut self.states.partner)
+        };
+
+        connected.connection = ControllerConnection::Tethered;
+        connected.battery_level = 100;
+        connected.battery_capacity = 100;
+
+        *offline = ControllerState::default();
+    }
+
+    /// Update the keyboard's active controller to push the joystick in the direction of the most
+    /// recently-held directional key.
+    fn apply_axis(&mut self, axis: Axis) {
+        // Find the most recently held directional key for this axis.
+        let held_direction = self
+            .held_directions
+            .iter()
+            .rev()
+            .find(|(held, _)| *held == axis)
+            .map(|(_, direction)| *direction);
+
+        let value = match held_direction {
+            Some(true) => i8::MAX,
+            Some(false) => i8::MIN,
+            None => 0,
+        };
+
+        let state = if self.kbd_is_partner {
+            &mut self.states.partner
+        } else {
+            &mut self.states.primary
+        };
+
+        match axis {
+            Axis::LeftX => state.left_stick.x_raw = value,
+            Axis::LeftY => state.left_stick.y_raw = value,
+            Axis::RightX => state.right_stick.x_raw = value,
+            Axis::RightY => state.right_stick.y_raw = value,
+        }
+    }
+
+    /// Publishes the current state of both controllers.
+    pub fn publish(&mut self) -> Result<()> {
+        self.publisher.send_copy(self.states)?;
+        Ok(())
+    }
+
+    /// Publish controller packet history to any new subscribers, without sending new data over IPC.
+    pub fn publish_history(&mut self) -> Result<()> {
+        self.publisher.update_connections()?;
+        Ok(())
+    }
+
+    /// Receives new input from the keyboard and publishes any changes to controller state.
+    pub fn keyboard_input(&mut self, event: KeyEvent) -> Result<()> {
+        let ControllerSource::Keyboard = self.source;
+
+        if event.repeat {
+            return Ok(());
+        }
+        let PhysicalKey::Code(code) = event.physical_key else {
+            return Ok(());
+        };
+
+        // Swap between partner and primary controller.
+        if code == KeyCode::KeyP && event.state.is_pressed() {
+            self.kbd_is_partner = !self.kbd_is_partner;
+            // Don't carry over input to the new controller.
+            self.held_directions.clear();
+            self.refresh_connections();
+            return self.publish();
+        }
+
+        let state = if self.kbd_is_partner {
+            &mut self.states.partner
+        } else {
+            &mut self.states.primary
+        };
+
+        let binary_input = match code {
+            KeyCode::ArrowUp => Some(&mut state.button_up),
+            KeyCode::ArrowDown => Some(&mut state.button_down),
+            KeyCode::ArrowLeft => Some(&mut state.button_left),
+            KeyCode::ArrowRight => Some(&mut state.button_right),
+
+            // Unfortunately there is a conflict with WASD here, so just choose some groupings of
+            // keys that feel right (Enter + Shift are good for UIs, otherwise corners of keyboard).
+            KeyCode::KeyZ | KeyCode::KeyM | KeyCode::Enter => Some(&mut state.button_a),
+            KeyCode::KeyX | KeyCode::Comma | KeyCode::ShiftLeft | KeyCode::ShiftRight => {
+                Some(&mut state.button_b)
+            }
+            KeyCode::KeyC | KeyCode::Period => Some(&mut state.button_x),
+            KeyCode::KeyV | KeyCode::Slash => Some(&mut state.button_y),
+
+            KeyCode::KeyQ => Some(&mut state.button_l1),
+            KeyCode::KeyE => Some(&mut state.button_r1),
+            KeyCode::KeyR | KeyCode::KeyU => Some(&mut state.button_l2),
+            KeyCode::KeyF | KeyCode::KeyO => Some(&mut state.button_r2),
+
+            KeyCode::Escape => Some(&mut state.button_power),
+
+            _ => None,
+        };
+
+        if let Some(input) = binary_input {
+            *input = event.state.is_pressed();
+        }
+
+        let analog_input = match code {
+            KeyCode::KeyW => Some((Axis::LeftY, true)),
+            KeyCode::KeyA => Some((Axis::LeftX, false)),
+            KeyCode::KeyS => Some((Axis::LeftY, false)),
+            KeyCode::KeyD => Some((Axis::LeftX, true)),
+
+            KeyCode::KeyI => Some((Axis::RightY, true)),
+            KeyCode::KeyJ => Some((Axis::RightX, false)),
+            KeyCode::KeyK => Some((Axis::RightY, false)),
+            KeyCode::KeyL => Some((Axis::RightX, true)),
+
+            _ => None,
+        };
+
+        if let Some(direction) = analog_input {
+            self.held_directions.retain(|held| *held != direction);
+            if event.state.is_pressed() {
+                self.held_directions.push(direction);
+            }
+
+            self.apply_axis(direction.0);
+        }
+
+        self.publish()
     }
 }

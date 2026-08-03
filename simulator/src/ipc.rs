@@ -10,7 +10,10 @@ use tracing::trace;
 use crate::{
     device::{DEVICES_STREAM, DevicesStream},
     display::{DISPLAY, FRAME_FINISHED},
-    sdk::touch::TOUCH_SUBSCRIBER,
+    sdk::{
+        controller::{ControllerStream, STREAM as CONTROLLER_STREAM},
+        touch::TOUCH_SUBSCRIBER,
+    },
 };
 
 pub fn start(name: &str) -> anyhow::Result<()> {
@@ -23,6 +26,7 @@ pub fn start(name: &str) -> anyhow::Result<()> {
     )?);
 
     *DEVICES_STREAM.lock() = Some(DevicesStream::new(ipc.clone())?);
+    *CONTROLLER_STREAM.lock() = Some(ControllerStream::new(&ipc)?);
     *TOUCH_SUBSCRIBER.lock() = Some(
         ipc.display_input()
             .unwrap()
@@ -41,6 +45,7 @@ pub fn start(name: &str) -> anyhow::Result<()> {
             // Either the user has exited or IPC has failed, so shut down the other IPC handles.
             // TODO: Does this crash subscribers?
             *DEVICES_STREAM.lock() = None;
+            *CONTROLLER_STREAM.lock() = None;
             *TOUCH_SUBSCRIBER.lock() = None;
 
             std::process::exit(1);
