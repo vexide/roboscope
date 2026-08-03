@@ -6,16 +6,16 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 bitflags = "2.11.1"
-derive_more = { version = "2.1.1", features = ["try_into", "from", "debug", "deref"] }
-iceoryx2 = "0.8.1"
-socket2 = "0.6.3"
-thiserror = "2.0.18"
-tracing = "0.1.44"
-vex-sdk = "0.28.0"
+derive_more = { workspace = true, features = ["try_into", "from", "debug", "deref"] }
+iceoryx2.workspace = true
+socket2.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+vex-sdk.workspace = true
 
 [features]
 default = ["thread-safe"]
 thread-safe = []
 
 [dev-dependencies]
-tracing-subscriber = "0.3.23"
+tracing-subscriber.workspace = true

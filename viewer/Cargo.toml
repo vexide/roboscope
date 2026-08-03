@@ -5,15 +5,15 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-anyhow = "1.0.102"
-bytemuck = { version = "1.25.0", features = ["must_cast"] }
+iceoryx2.workspace = true
+anyhow.workspace = true
+bytemuck.workspace = true
 ctrlc = { version = "3.5.2" }
-fast_image_resize = { version = "6.0.0", features = ["bytemuck"] }
-iceoryx2 = "0.8.1"
-image = { version = "0.25.9", default-features = false, features = ["png"] }
+fast_image_resize.workspace = true
+image.workspace = true
 roboscope-ipc = { version = "0.1.0", path = "../ipc" }
 softbuffer = "0.4.8"
-tracing = "0.1.44"
+tracing.workspace = true
 winit = "0.30.13"
 
 [target.'cfg(target_os = "macos")'.dependencies]

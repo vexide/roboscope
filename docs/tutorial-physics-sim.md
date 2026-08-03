@@ -5,7 +5,7 @@ To access devices, you need to write or use a physics server for your robot code
 You can add it to a new project with this command:
 
 ```sh
-cargo add --git https://github.com/lewisfm/vex-simulation roboscope-ipc
+cargo add --git https://github.com/vexide/roboscope roboscope-ipc
 ```
 
 ## Connect to Sim Services

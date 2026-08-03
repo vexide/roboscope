@@ -6,20 +6,20 @@ RoboScope is an enhanced desktop SDK for vexide with features like display simul
 
 ## Getting started
 
-You need to be using a recent nightly version of Rust (see `rust-toolchain.toml`)! vexide v0.8 isn't compatible with Rust versions this new; you need to use the main branch of vexide instead until v0.9 is published.
+RoboScope supports vexide v0.9.0-alpha.1 or later.
 
 Add vex-sdk-desktop as a dependency in your Cargo.toml. Make sure you are manually managing what SDK your project uses instead of using vexide's `default-sdk` feature, like this:
 
 ```toml
 [dependencies.vexide]
-git = "https://github.com/vexide/vexide"
+version = "0.9.0-alpha.1"
 features = ["full"]
 
 [target.'cfg(target_os = "vexos")'.dependencies]
-vex-sdk-jumptable = { git = "https://github.com/vexide/vex-sdk" }
+vex-sdk-jumptable = "0.2.0-rc.1"
 
 [target.'cfg(not(target_os = "vexos"))'.dependencies]
-vex-sdk-desktop = { git = "https://github.com/lewisfm/vex-simulation" }
+vex-sdk-desktop = { git = "https://github.com/vexide/roboscope" }
 ```
 
 Then, initialize it from your main function:
@@ -44,7 +44,7 @@ Then `cargo run`.
 If you would like to see display output, install the display viewer:
 
 ```sh
-cargo install --git https://github.com/lewisfm/vex-simulation roboscope-viewer
+cargo install --git https://github.com/vexide/roboscope roboscope-viewer
 ```
 
 Then run `roboscope-viewer` while your program is running.
