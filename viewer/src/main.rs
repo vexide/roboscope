@@ -27,10 +27,9 @@ use tracing::{debug, error, trace};
 use winit::{
     application::ApplicationHandler,
     dpi::LogicalSize,
-    event::{ElementState, KeyEvent, MouseButton, StartCause, WindowEvent},
+    event::{KeyEvent, MouseButton, StartCause, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop, OwnedDisplayHandle},
     keyboard::{KeyCode, PhysicalKey},
-    platform::modifier_supplement::KeyEventExtModifierSupplement,
     window::{Theme, Window, WindowId},
 };
 
@@ -44,7 +43,7 @@ type DisplayCtx = Context<OwnedDisplayHandle>;
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
-    /// Provide virtual V5 Controller input, simulating the given medium.
+    /// Publish V5 Controller input using the given data source.
     #[arg(long)]
     ctrl: Option<ControllerSource>,
 }
@@ -52,8 +51,6 @@ struct Cli {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 enum ControllerSource {
     /// Interpret keyboard input as controller inputs.
-    ///
-    /// # Keybindings
     Keyboard,
 }
 
