@@ -82,6 +82,10 @@ impl SimServices {
         self.pub_sub("vexide/roboscope/device_readings")
     }
 
+    pub fn controller_input(&self) -> SimResult<PubSubFactory<snapshot::ControllerInput>> {
+        self.pub_sub("vexide/roboscope/controller_input")
+    }
+
     pub fn publish_device_readings(
         &self,
         mut physics_sim: impl FnMut(Option<&cmd::RobotOutputs>) -> snapshot::DeviceReadings,

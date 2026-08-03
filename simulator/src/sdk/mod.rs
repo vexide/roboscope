@@ -58,6 +58,7 @@ unsafe extern "C" {
 
 static WARN_ONCE: LazyLock<Mutex<HashSet<&'static str>>> = LazyLock::new(Mutex::default);
 
+/// Warn once that the feature with the given name is unsupported.
 macro_rules! sdk_unimplemented {
     ($name:literal) => {{
         use $crate::config::{config, Warning};
@@ -137,5 +138,3 @@ fn device_name(kind: V5_DeviceType) -> &'static str {
         _ => "Undefined",
     }
 }
-
-fn warn_invalid_enum() {}
