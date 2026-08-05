@@ -68,12 +68,7 @@ fn draw_controller(x0: i32, name: &str, id: V5_ControllerId) {
     sdk::text_size(1, 3);
     if status == V5_ControllerStatus::kV5ControllerOffline {
         sdk::text(x0 + 10, 4, RED, &status_line);
-        sdk::text_centered(
-            x0 + PANEL_SIZE / 2,
-            PANEL_HEIGHT / 2,
-            GREY,
-            "no controller",
-        );
+        sdk::text_centered(x0 + PANEL_SIZE / 2, PANEL_HEIGHT / 2, GREY, "no controller");
         return;
     }
 

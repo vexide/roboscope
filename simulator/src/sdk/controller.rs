@@ -9,7 +9,10 @@ use roboscope_ipc::{
 use tracing::warn;
 pub use vex_sdk::{V5_ControllerId, V5_ControllerIndex, V5_ControllerStatus};
 
-use crate::{config::{Warning, config}, sdk::{warn_unknown_enum, sdk_unimplemented}};
+use crate::{
+    config::{Warning, config},
+    sdk::{sdk_unimplemented, warn_unknown_enum},
+};
 
 pub(crate) static STREAM: Mutex<Option<ControllerStream>> = Mutex::new(None);
 
@@ -87,15 +90,15 @@ pub extern "system" fn vexControllerGet(id: V5_ControllerId, index: V5_Controlle
             V5_ControllerIndex::BatteryLevel => state.battery_level as i32,
             // TODO: This seems to return a bitfield of all buttons. Still TBD
             // on what bits correspond to what flag.
-            V5_ControllerIndex::ButtonAll =>  {
+            V5_ControllerIndex::ButtonAll => {
                 sdk_unimplemented!("V5_ControllerIndex::ButtonAll");
                 0
-            },
+            }
             // TODO: Also TBD on what this is.
             V5_ControllerIndex::Flags => {
                 sdk_unimplemented!("V5_ControllerIndex::Flags");
                 0
-            },
+            }
             V5_ControllerIndex::BatteryCapacity => state.battery_capacity as i32,
             _ => {
                 warn_unknown_enum::<V5_ControllerIndex>(index.0);
@@ -139,11 +142,10 @@ fn warn_disconnected(is_partner: bool) {
         return;
     }
 
-    let controller = if is_partner {
-        "Partner"
-    } else {
-        "Primary"
-    };
+    let controller = if is_partner { "Partner" } else { "Primary" };
 
-    warn!(controller, "Tried to read data from a disconnected controller");
+    warn!(
+        controller,
+        "Tried to read data from a disconnected controller"
+    );
 }
