@@ -109,6 +109,7 @@ Supported (requires a viewer app):
 
 - [x] Display API
 - [x] Touch API
+- [x] Controller API
 
 Supported (bring your own [physics simulator](./docs/tutorial-physics-sim.md)):
 
