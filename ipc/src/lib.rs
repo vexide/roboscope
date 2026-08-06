@@ -54,6 +54,7 @@ impl SimServices {
         })
     }
 
+    /// Opens a publish-subscribe service whose subscribers buffer at most one sample.
     fn pub_sub<T: Debug + ZeroCopySend>(&self, name: &str) -> SimResult<PubSubFactory<T>> {
         let name = ServiceName::new(name).unwrap();
         let service = self
@@ -61,6 +62,10 @@ impl SimServices {
             .service_builder(&name)
             .publish_subscribe::<T>()
             .history_size(1)
+            // Sample queue is limited to 1 so subscribers always get the latest data, even if it
+            // means dropping some frames.
+            .subscriber_max_buffer_size(1)
+            .enable_safe_overflow(true)
             .open_or_create()?;
 
         Ok(service)
@@ -80,6 +85,10 @@ impl SimServices {
 
     pub fn device_readings(&self) -> SimResult<PubSubFactory<snapshot::DeviceReadings>> {
         self.pub_sub("vexide/roboscope/device_readings")
+    }
+
+    pub fn controller_input(&self) -> SimResult<PubSubFactory<snapshot::ControllerInput>> {
+        self.pub_sub("vexide/roboscope/controller_input")
     }
 
     pub fn publish_device_readings(

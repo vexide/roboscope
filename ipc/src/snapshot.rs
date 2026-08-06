@@ -16,6 +16,84 @@ use vex_sdk::V5_DeviceType;
 
 use crate::SMART_DEVICES_COUNT;
 
+/// A packet which reports all the available controller input to the device.
+#[derive(Debug, Copy, Clone, PartialEq, ZeroCopySend, Default)]
+#[repr(C)]
+pub struct ControllerInput {
+    pub primary: ControllerState,
+    pub partner: ControllerState,
+}
+
+/// The method by which a controller is connected.
+#[derive(Debug, Copy, Clone, PartialEq, ZeroCopySend, Default)]
+#[repr(C)]
+pub enum ControllerConnection {
+    #[default]
+    Offline = 0,
+    Tethered = 1,
+    Vexnet = 2,
+}
+
+/// A sample of readings from a single controller.
+#[derive(Debug, Copy, Clone, PartialEq, ZeroCopySend, Default)]
+#[repr(C)]
+pub struct ControllerState {
+    pub connection: ControllerConnection,
+    // TODO: Find & document the difference between these
+    /// Battery level.
+    pub battery_level: u16,
+    /// Battery capacity from 0 to 100.
+    pub battery_capacity: u8,
+
+    /// Left Joystick
+    pub left_stick: JoystickState,
+    /// Right Joystick
+    pub right_stick: JoystickState,
+
+    /// Button A
+    pub button_a: bool,
+    /// Button B
+    pub button_b: bool,
+    /// Button X
+    pub button_x: bool,
+    /// Button Y
+    pub button_y: bool,
+
+    /// Button Up
+    pub button_up: bool,
+    /// Button Down
+    pub button_down: bool,
+    /// Button Left
+    pub button_left: bool,
+    /// Button Right
+    pub button_right: bool,
+
+    /// Top Left Bumper
+    pub button_l1: bool,
+    /// Bottom Left Bumper
+    pub button_l2: bool,
+    /// Top Right Bumper
+    pub button_r1: bool,
+    /// Bottom Right Bumper
+    pub button_r2: bool,
+
+    /// Center Power Button
+    pub button_power: bool,
+}
+
+impl ControllerState {
+    pub const fn connected(self) -> bool {
+        !matches!(self.connection, ControllerConnection::Offline)
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, ZeroCopySend, Default)]
+#[repr(C)]
+pub struct JoystickState {
+    pub x_raw: i8,
+    pub y_raw: i8,
+}
+
 /// A packet which reports the most recent readings from all of a V5 brain's smart ports.
 #[derive(Debug, Copy, Clone, PartialEq, ZeroCopySend, Default)]
 #[repr(C)]

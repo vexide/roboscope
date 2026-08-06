@@ -7,6 +7,7 @@ use std::{
 };
 
 use anyhow::{Context as _, Result, anyhow};
+use clap::Parser;
 use fast_image_resize::{
     ResizeAlg, ResizeOptions, Resizer,
     images::{TypedImage, TypedImageRef},
@@ -14,7 +15,7 @@ use fast_image_resize::{
 };
 use iceoryx2::{node::NodeBuilder, signal_handling_mode::SignalHandlingMode};
 use roboscope_ipc::{
-    Config, Publisher, Sample, SimServices, Subscriber,
+    Config, Publisher, SimServices, Subscriber,
     display::{DISPLAY_HEIGHT, DISPLAY_WIDTH, DisplayFrame, DisplayInput, DisplayInputKind},
 };
 use softbuffer::{Context, Surface};
@@ -27,6 +28,9 @@ use winit::{
     window::{Theme, Window, WindowId},
 };
 
+use crate::controller::{ControllerHandler, InputSourceConfig};
+
+mod controller;
 #[cfg(target_os = "macos")]
 mod macos;
 
@@ -34,24 +38,39 @@ const WINDOW_SIZE: LogicalSize<f64> = LogicalSize::new(480.0, 272.0);
 
 type DisplayCtx = Context<OwnedDisplayHandle>;
 
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    #[clap(flatten)]
+    controller_config: InputSourceConfig,
+}
+
 enum ViewerEvent {
     Shutdown,
 }
 
 fn main() -> Result<()> {
-    ViewerApp::start()
+    let mut args = Cli::parse();
+
+    // Normalize args.
+    if args.controller_config.force_keyboard {
+        args.controller_config.keyboard = true;
+    }
+
+    ViewerApp::start(args)
 }
 
-pub struct ViewerApp {
+struct ViewerApp {
     sim_display: Option<SimDisplayWindow>,
     context: DisplayCtx,
     last_frame_time: Option<Instant>,
     subscriber: Option<Subscriber<DisplayFrame>>,
     publisher: Option<Publisher<DisplayInput>>,
+    controller: Option<ControllerHandler>,
 }
 
 impl ViewerApp {
-    pub fn start() -> Result<()> {
+    fn start(args: Cli) -> Result<()> {
         let builder = NodeBuilder::new()
             .config(&Config::default())
             .signal_handling_mode(SignalHandlingMode::Disabled);
@@ -69,6 +88,11 @@ impl ViewerApp {
 
         let display = event_loop.owned_display_handle();
         let mut simulator = ViewerApp::new(display, subscriber, publisher)?;
+
+        if args.controller_config.has_inputs() {
+            simulator.controller = Some(ControllerHandler::new(&ipc, args.controller_config)?);
+        }
+
         event_loop.run_app(&mut simulator)?;
 
         Ok(())
@@ -89,6 +113,7 @@ impl ViewerApp {
             last_frame_time: None,
             subscriber: Some(subscriber),
             publisher: Some(publisher),
+            controller: None,
         })
     }
 
@@ -146,6 +171,13 @@ impl ApplicationHandler<ViewerEvent> for ViewerApp {
                 if let Some(d) = &mut self.sim_display {
                     d.recv_frame();
                 }
+
+                // Deliver the retained controller state to programs which started after the viewer.
+                if let Some(controller) = &mut self.controller
+                    && let Err(error) = controller.publish_history()
+                {
+                    error!(%error, "Failed to deliver controller input history");
+                }
             }
             _ => {}
         }
@@ -157,10 +189,20 @@ impl ApplicationHandler<ViewerEvent> for ViewerApp {
         window_id: WindowId,
         event: WindowEvent,
     ) {
-        if let Some(sim_display) = &mut self.sim_display
+        if let Some(mut sim_display) = self.sim_display.take()
             && window_id == sim_display.window_id()
         {
-            sim_display.handle_event(event_loop, event);
+            sim_display.handle_event(self, event_loop, event);
+            self.sim_display = Some(sim_display);
+        }
+    }
+
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        if let Some(controller) = &mut self.controller {
+            let result = controller.handle_gamepad();
+            if let Err(err) = result {
+                error!(%err, "failed to tick gamepad input");
+            }
         }
     }
 }
@@ -224,7 +266,12 @@ impl SimDisplayWindow {
     }
 
     /// Handle an event sent to this window.
-    pub fn handle_event(&mut self, event_loop: &ActiveEventLoop, event: WindowEvent) {
+    fn handle_event(
+        &mut self,
+        app: &mut ViewerApp,
+        event_loop: &ActiveEventLoop,
+        event: WindowEvent,
+    ) {
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
@@ -307,6 +354,13 @@ impl SimDisplayWindow {
                         NonZeroU32::new(fb_dims.height).unwrap(),
                     )
                     .unwrap();
+            }
+            WindowEvent::KeyboardInput { event, .. } => {
+                if let Some(controller) = &mut app.controller
+                    && let Err(error) = controller.handle_keyboard(event)
+                {
+                    error!(?error, "Failed to publish key input");
+                }
             }
             _ => {}
         }
