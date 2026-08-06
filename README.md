@@ -127,7 +127,6 @@ Unsupported (returns dummy values only):
 - [ ] ADI ports and ADI expanders
 - [ ] Competition API
 - [ ] Filesystem API (consider using `std::fs`)
-- [ ] Controller API
 - [ ] System API
 - [ ] Task API (system tasks OK, user tasks unsupported)
 
