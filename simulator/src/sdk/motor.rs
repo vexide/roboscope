@@ -26,6 +26,7 @@
 //! [gearing]: vexDeviceMotorGearingSet
 
 use core::ffi::c_double;
+use std::cmp;
 
 use roboscope_ipc::{
     cmd::{DeviceCommand, MotorBrakeMode, MotorCommand, MotorControlMode, MotorGearset},
@@ -42,7 +43,7 @@ use crate::{
     sdk::{warn_once, warn_unknown_enum, warn_unplugged},
 };
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct MotorState {
     /// The data which is sent to the motor.
     ///
@@ -62,11 +63,22 @@ pub struct MotorState {
     /// negated, such that changing the reversal status will move the location that's reported as
     /// zero.
     zero_point: i32,
-    /// Maximum voltage to allow, or 0 to disable.
-    voltage_limit: i32,
 }
 
 impl MotorState {
+    /// Switch to PWM control with the given percentage of the voltage limit.
+    ///
+    /// The value is clamped to `[-100, 100]` and negated if the motor is reversed.
+    fn set_pwm(&mut self, pwm: i32) {
+        let mut actual_pwm = pwm.clamp(-100, 100);
+        if self.is_reversed {
+            actual_pwm *= -1;
+        }
+
+        self.cmd.mode = MotorControlMode::Pwm;
+        self.cmd.pwm = actual_pwm;
+    }
+
     /// Apply any enabled transformations to the given position value.
     fn process_position(&self, mut position: i32) -> f64 {
         if self.is_reversed {
@@ -239,26 +251,14 @@ pub extern "system" fn vexDeviceMotorModeGet(device: V5_DeviceT) -> V5MotorContr
 /// Switch the motor to the PWM control mode with the specified PWM control percentage (from `-100`
 /// to `100`).
 ///
-/// The configured voltage limit is bypassed.
+/// The percentage is of the configured [voltage limit](vexDeviceMotorVoltageLimitSet), so with a
+/// 6000 mV limit, a PWM of `100` outputs 6000 mV.
 #[unsafe(no_mangle)]
 pub extern "system" fn vexDeviceMotorPwmSet(device: V5_DeviceT, pwm: i32) {
     let mut ctx = DEVICES.lock();
 
     if let Some(state) = ctx.state_for::<MotorState>(device) {
-        if state.voltage_limit != 0 {
-            warn_once!(
-                "pwm-with-voltage-limit",
-                "PWM motor control doesn't respect the configured voltage limit",
-            );
-        }
-
-        let mut actual_pwm = pwm.clamp(-100, 100);
-        if state.is_reversed {
-            actual_pwm *= -1;
-        }
-
-        state.cmd.mode = MotorControlMode::Pwm;
-        state.cmd.pwm = actual_pwm;
+        state.set_pwm(pwm);
     } else {
         warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
     }
@@ -272,7 +272,12 @@ pub extern "system" fn vexDeviceMotorPwmGet(device: V5_DeviceT) -> i32 {
     let mut ctx = DEVICES.lock();
 
     if let Some(state) = ctx.state_for::<MotorState>(device) {
-        state.cmd.pwm
+        // `cmd.pwm` is stored with reversal applied, so undo it.
+        if state.is_reversed {
+            -state.cmd.pwm
+        } else {
+            state.cmd.pwm
+        }
     } else {
         warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         0
@@ -667,25 +672,18 @@ pub extern "system" fn vexDeviceMotorFlagsGet(device: V5_DeviceT) -> u32 {
     }
 }
 
-const MAX_VOLTAGE: i32 = 12_000;
-
 /// Switch the motor to PWM control and command it to run at the given voltage (in millivolts).
+///
+/// The voltage is clamped to the configured [voltage limit](vexDeviceMotorVoltageLimitSet) and
+/// then converted to a PWM percentage of that limit, rounding toward zero.
 #[unsafe(no_mangle)]
 pub extern "system" fn vexDeviceMotorVoltageSet(device: V5_DeviceT, voltage: i32) {
     let mut ctx = DEVICES.lock();
     if let Some(state) = ctx.state_for::<MotorState>(device) {
-        let mut actual_voltage = voltage.clamp(-MAX_VOLTAGE, MAX_VOLTAGE);
-
-        if state.voltage_limit != 0 {
-            actual_voltage =
-                actual_voltage.clamp(-state.voltage_limit.abs(), state.voltage_limit.abs());
-        }
-        if state.is_reversed {
-            actual_voltage *= -1;
-        }
-
-        state.cmd.mode = MotorControlMode::Pwm;
-        state.cmd.pwm = actual_voltage;
+        // The limit isn't ever zero because vexDeviceMotorVoltageLimitSet clamps it.
+        let limit = cmp::min(state.cmd.voltage_limit.abs(), MotorCommand::MAX_VOLTAGE);
+        let actual_voltage = voltage.clamp(-limit, limit);
+        state.set_pwm(actual_voltage * 100 / limit);
     } else {
         warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
     }
@@ -732,19 +730,27 @@ pub extern "system" fn vexDeviceMotorGearingGet(device: V5_DeviceT) -> V5MotorGe
     }
 }
 
+/// Set the motor's maximum output voltage in millivolts.
+///
+/// The limit is clamped to `[1000, 12000]`, so values below 1000 (including zero and negative
+/// numbers) set a 1000 mV limit.
 #[unsafe(no_mangle)]
 pub extern "system" fn vexDeviceMotorVoltageLimitSet(device: V5_DeviceT, limit: i32) {
     let mut ctx = DEVICES.lock();
     if let Some(state) = ctx.state_for::<MotorState>(device) {
-        if limit.abs() > MAX_VOLTAGE.abs() {
+        let actual_limit = limit.clamp(MotorCommand::MIN_VOLTAGE_LIMIT, MotorCommand::MAX_VOLTAGE);
+        if actual_limit != limit {
             warn_once!(
-                "voltage-limit-useless",
+                "voltage-limit-clamped",
                 limit,
-                "Voltage limits larger than {MAX_VOLTAGE} have no effect."
+                actual_limit,
+                "An out-of-range motor voltage limit was clamped to [{}, {}] mV.",
+                MotorCommand::MIN_VOLTAGE_LIMIT,
+                MotorCommand::MAX_VOLTAGE,
             );
         }
 
-        state.voltage_limit = limit;
+        state.cmd.voltage_limit = actual_limit;
     } else {
         warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
     }
@@ -754,7 +760,7 @@ pub extern "system" fn vexDeviceMotorVoltageLimitSet(device: V5_DeviceT, limit: 
 pub extern "system" fn vexDeviceMotorVoltageLimitGet(device: V5_DeviceT) -> i32 {
     let mut ctx = DEVICES.lock();
     if let Some(state) = ctx.state_for::<MotorState>(device) {
-        state.voltage_limit
+        state.cmd.voltage_limit
     } else {
         warn_unplugged(&ctx, device, V5_DeviceType::kDeviceTypeMotorSensor);
         0
@@ -798,4 +804,166 @@ pub extern "system" fn vexDeviceMotorExternalProfileSet(
     velocity: i32,
 ) {
     super::sdk_unimplemented!("vexDeviceMotorExternalProfileSet");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sdk::device::vexDeviceGetByIndex;
+
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use parking_lot::{Mutex, MutexGuard};
+
+    use crate::device::{NUM_DEVICES_HANDLES, V5Device};
+
+    /// These locks prevent multiple tests from using the same smart port when running in parallel.
+    static PORT_LOCKS: [Mutex<()>; NUM_DEVICES_HANDLES] =
+        [const { Mutex::new(()) }; NUM_DEVICES_HANDLES];
+
+    /// A motor plugged into a smart port that this test has exclusive use of.
+    struct TestMotor {
+        port: usize,
+        handle: V5_DeviceT,
+        _port_lock: MutexGuard<'static, ()>,
+    }
+
+    impl TestMotor {
+        fn state<R>(&self, f: impl FnOnce(&mut MotorState) -> R) -> R {
+            f(DEVICES.lock().state_for::<MotorState>(self.port).unwrap())
+        }
+
+        /// The `pwm` value that will be sent to the physics simulator.
+        fn commanded_pwm(&self) -> i32 {
+            self.state(|s| s.cmd.pwm)
+        }
+    }
+
+    /// Plug a new motor into a smart port and take exclusive use of it.
+    ///
+    /// If another test is running in parallel, the motor will be created on a different port to
+    /// avoid conflicting with it. The device starts with no state.
+    fn plug_in_motor() -> TestMotor {
+        static NEXT_PORT: AtomicUsize = AtomicUsize::new(0);
+        let port = NEXT_PORT.fetch_add(1, Ordering::Relaxed) % NUM_DEVICES_HANDLES;
+
+        // Taking this before taking `devices` avoids a deadlock.
+        let port_lock = PORT_LOCKS[port].lock();
+
+        let mut devices = DEVICES.lock();
+        let device = &mut devices.smart_devices[port];
+
+        // Reset the device state since the last test.
+        *device = V5Device::new();
+        device.set_type(V5_DeviceType::kDeviceTypeMotorSensor);
+        assert!(
+            devices.state_for::<MotorState>(port).is_some(),
+            "port {port} should hold motor state after plugging in a motor",
+        );
+
+        drop(devices);
+
+        TestMotor {
+            port,
+            handle: vexDeviceGetByIndex(port as u32),
+            _port_lock: port_lock,
+        }
+    }
+
+    #[test]
+    fn pwm_set_get_roundtrip() {
+        let motor = plug_in_motor();
+        for pwm in [-100, -37, 0, 42, 100] {
+            vexDeviceMotorPwmSet(motor.handle, pwm);
+            assert_eq!(vexDeviceMotorPwmGet(motor.handle), pwm);
+            assert_eq!(motor.commanded_pwm(), pwm);
+        }
+    }
+
+    #[test]
+    fn pwm_set_clamps() {
+        let motor = plug_in_motor();
+        vexDeviceMotorPwmSet(motor.handle, 150);
+        assert_eq!(motor.commanded_pwm(), 100);
+        vexDeviceMotorPwmSet(motor.handle, -150);
+        assert_eq!(motor.commanded_pwm(), -100);
+    }
+
+    #[test]
+    fn pwm_get_undoes_reversal() {
+        let motor = plug_in_motor();
+        vexDeviceMotorReverseFlagSet(motor.handle, true);
+        vexDeviceMotorPwmSet(motor.handle, 42);
+        assert_eq!(motor.commanded_pwm(), -42);
+        assert_eq!(vexDeviceMotorPwmGet(motor.handle), 42);
+    }
+
+    #[test]
+    fn voltage_set_commands_percent() {
+        let motor = plug_in_motor();
+        for (voltage, pwm) in [
+            (12_000, 100),
+            (6_000, 50),
+            (0, 0),
+            (-3_000, -25),
+            (-12_000, -100),
+            (20_000, 100),
+            (-20_000, -100),
+        ] {
+            vexDeviceMotorVoltageSet(motor.handle, voltage);
+            assert_eq!(motor.commanded_pwm(), pwm, "voltage {voltage}");
+            assert_eq!(vexDeviceMotorPwmGet(motor.handle), pwm, "voltage {voltage}");
+        }
+    }
+
+    /// The voltage should be converted into a percent of the voltage limit, not of the max voltage.
+    #[test]
+    fn voltage_set_is_percent_of_limit() {
+        let motor = plug_in_motor();
+        vexDeviceMotorVoltageLimitSet(motor.handle, 6_000);
+        for (voltage, pwm) in [
+            (12_000, 100),
+            (6_000, 100),
+            (3_000, 50),
+            (59, 0),
+            (-1_500, -25),
+            (-12_000, -100),
+        ] {
+            vexDeviceMotorVoltageSet(motor.handle, voltage);
+            assert_eq!(motor.commanded_pwm(), pwm, "voltage {voltage}");
+            assert_eq!(vexDeviceMotorPwmGet(motor.handle), pwm, "voltage {voltage}");
+        }
+
+        vexDeviceMotorReverseFlagSet(motor.handle, true);
+        vexDeviceMotorVoltageSet(motor.handle, 3_000);
+        assert_eq!(motor.commanded_pwm(), -50);
+        assert_eq!(vexDeviceMotorPwmGet(motor.handle), 50);
+    }
+
+    #[test]
+    fn voltage_limit_defaults_to_max() {
+        let motor = plug_in_motor();
+        assert_eq!(vexDeviceMotorVoltageLimitGet(motor.handle), 12_000);
+    }
+
+    /// The voltage limit is clamped to `[1000, 12000]`, and zero does not disable the motor or
+    /// the voltage limit.
+    #[test]
+    fn voltage_limit_set_clamps() {
+        let motor = plug_in_motor();
+        for (limit, actual) in [
+            (6_000, 6_000),
+            (20_000, 12_000),
+            (999, 1_000),
+            (0, 1_000),
+            (-5_000, 1_000),
+        ] {
+            vexDeviceMotorVoltageLimitSet(motor.handle, limit);
+            assert_eq!(
+                vexDeviceMotorVoltageLimitGet(motor.handle),
+                actual,
+                "limit {limit}"
+            );
+        }
+    }
 }

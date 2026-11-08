@@ -114,7 +114,7 @@ impl Devices {
         // Some devices may need to be re-initialized as a different type if something new was
         // plugged in.
         for (device, snapshot) in self.smart_devices.iter_mut().zip(&sample.snapshots) {
-            device.handle_physics_update(snapshot.kind());
+            device.set_type(snapshot.kind());
         }
 
         self.readings = Some(sample);
@@ -235,11 +235,11 @@ impl V5Device {
         self.generic_serial = enabled;
     }
 
-    /// Handle new data from the physics sim.
+    /// Set the type of the motor using data from the physics sim.
     ///
     /// If this device is determined to hold to wrong kind of state for the given device type, its
     /// [`V5DeviceState`] variant will be changed.
-    fn handle_physics_update(&mut self, new_type: V5_DeviceType) {
+    pub(crate) fn set_type(&mut self, new_type: V5_DeviceType) {
         // Ports that have been configured as generic serial ignore data from the physics sim until
         // they are [reset](Self::set_generic_serial).
         if self.generic_serial {

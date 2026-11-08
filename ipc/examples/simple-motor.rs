@@ -11,6 +11,7 @@ fn main() {
 
     // This is a really crude simulation of a motor that basically just does "voltage = velocity".
     let mut motor_pwm = 0;
+    let mut motor_voltage_limit = 12_000;
     let mut motor_position = 0;
 
     sim.publish_device_readings(|cmds| {
@@ -20,6 +21,7 @@ fn main() {
             println!("motor {motor:?}");
             if motor.mode == MotorControlMode::Pwm {
                 motor_pwm = motor.pwm;
+                motor_voltage_limit = motor.voltage_limit;
             } else {
                 motor_pwm = 0;
             }
@@ -29,7 +31,8 @@ fn main() {
         println!("Motor position: {motor_position}");
 
         readings.snapshots[0] = MotorSnapshot {
-            applied_voltage: motor_pwm * 120, // 100% PWM = 12_000 mV
+            // PWM is a percentage of the voltage limit.
+            applied_voltage: motor_pwm * motor_voltage_limit / 100,
             raw_position: motor_position,
             ..Default::default()
         }

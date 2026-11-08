@@ -100,4 +100,8 @@ sim.publish_device_readings(|cmds| {
 })?;
 ```
 
+> [!NOTE]
+> `motor.pwm` is a percentage of `motor.voltage_limit`, not of the motor's 12 V maximum. You can use
+> `motor.pwm_millivolts()` to get the commanded PWM as a value in millivolts.
+
 Where possible, RoboScope will abstract away device configuration so that the inputs to your physics simulator are simpler: your physics simulator doesn't need to handle motor reversal, zero positions, or alternative encoder units.

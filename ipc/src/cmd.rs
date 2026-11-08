@@ -22,7 +22,7 @@ pub enum DeviceCommand {
     Motor(MotorCommand),
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, ZeroCopySend, Default)]
+#[derive(Debug, Copy, Clone, PartialEq, ZeroCopySend)]
 #[repr(C)]
 pub struct MotorCommand {
     /// Requested mode of motor control
@@ -33,12 +33,47 @@ pub struct MotorCommand {
     pub target_position: i32,
     /// Target velocity in ticks per second
     pub target_velocity: i32,
-    /// PWM control % with the range `[-100, 100]`
+    /// PWM control % with the range `[-100, 100]`.
+    ///
+    /// This is a percentage of [`Self::voltage_limit`], not of the motor's 12 V maximum, so the
+    /// motor should output `pwm * voltage_limit / 100` millivolts.
     pub pwm: i32,
+    /// Maximum output voltage in millivolts, with the range `[1000, 12000]`.
+    pub voltage_limit: i32,
     /// Requested current limit in milliamperes.
     pub current_limit: i32,
     /// Brake mode for when targeting zero velocity.
     pub brake_mode: MotorBrakeMode,
+}
+
+impl MotorCommand {
+    /// The highest voltage a motor can output, in millivolts.
+    pub const MAX_VOLTAGE: i32 = 12_000;
+    /// The lowest voltage limit a motor accepts, in millivolts.
+    pub const MIN_VOLTAGE_LIMIT: i32 = 1_000;
+
+    /// Returns the commanded PWM output in millivolts.
+    ///
+    /// This is intended be used only when the [mode](Self::mode) is [`MotorControlMode::Pwm`] to
+    /// get the commanded output of the motor in millivolts.
+    pub fn pwm_millivolts(&self) -> i32 {
+        self.pwm * self.voltage_limit / 100
+    }
+}
+
+impl Default for MotorCommand {
+    fn default() -> Self {
+        Self {
+            mode: MotorControlMode::default(),
+            gearset: MotorGearset::default(),
+            target_position: 0,
+            target_velocity: 0,
+            pwm: 0,
+            voltage_limit: Self::MAX_VOLTAGE,
+            current_limit: 0,
+            brake_mode: MotorBrakeMode::default(),
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, ZeroCopySend, Default, From)]
