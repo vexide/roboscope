@@ -1,12 +1,12 @@
-use std::{ffi::c_void, io::Cursor, ptr};
+use std::{ffi::c_void, io::Cursor, ptr, ptr::NonNull};
 
 use dispatch2::run_on_main;
 use image::{ImageFormat, ImageReader, RgbaImage};
 use objc2::{AnyThread, rc::Retained};
 use objc2_app_kit::{NSApplication, NSImage, NSView};
 use objc2_core_graphics::{
-    CGBitmapInfo, CGColorRenderingIntent, CGColorSpace, CGDataProvider,
-    CGDataProviderReleaseDataCallback, CGImage, CGImageAlphaInfo, CGImageByteOrderInfo,
+    CGBitmapInfo, CGColorRenderingIntent, CGColorSpace, CGDataProvider, CGImage, CGImageAlphaInfo,
+    CGImageByteOrderInfo,
 };
 use objc2_foundation::NSSize;
 use roboscope_ipc::display::{DISPLAY_HEIGHT, DISPLAY_WIDTH};
@@ -27,29 +27,50 @@ pub fn init_app() {
         .decode()
         .unwrap();
 
-    set_app_icon(&icon_image.into());
+    set_app_icon(icon_image.into());
+}
+
+/// Frees the pixel buffer handed to `CGDataProviderCreateWithData` in [`set_app_icon`].
+///
+/// # Safety
+///
+/// `data` must be the pointer of a `Box<[u8]>` of length `size` that has been leaked with
+/// [`Box::into_raw`], and must not be used again after this call.
+unsafe extern "C-unwind" fn release_boxed_pixels(
+    _info: *mut c_void,
+    data: NonNull<c_void>,
+    size: usize,
+) {
+    drop(unsafe {
+        Box::from_raw(ptr::slice_from_raw_parts_mut(
+            data.as_ptr().cast::<u8>(),
+            size,
+        ))
+    });
 }
 
 /// Sets the app icon in the dock to the given image.
-fn set_app_icon(icon: &RgbaImage) {
+fn set_app_icon(icon: RgbaImage) {
     run_on_main(move |marker| {
+        let (width, height) = (icon.width() as usize, icon.height() as usize);
+
+        // AppKit re-renders the image periodically, so we need the image to outlive this function.
+        let pixels: Box<[u8]> = icon.into_raw().into_boxed_slice();
+        let len = pixels.len();
+        let pixels = Box::into_raw(pixels).cast::<c_void>();
+
         let data_provider = unsafe {
-            CGDataProvider::with_data(
-                ptr::null_mut(),
-                icon.as_ptr().cast::<c_void>(),
-                icon.len(),
-                CGDataProviderReleaseDataCallback::None,
-            )
-            .unwrap()
+            CGDataProvider::with_data(ptr::null_mut(), pixels, len, Some(release_boxed_pixels))
+                .unwrap()
         };
 
         let image = unsafe {
             CGImage::new(
-                icon.width() as usize,
-                icon.height() as usize,
+                width,
+                height,
                 8,
                 8 * 4,
-                4 * icon.width() as usize,
+                4 * width,
                 Some(&CGColorSpace::new_device_rgb().unwrap()),
                 CGBitmapInfo(CGImageByteOrderInfo::Order32Big.0 | CGImageAlphaInfo::Last.0),
                 Some(&data_provider),
@@ -63,7 +84,7 @@ fn set_app_icon(icon: &RgbaImage) {
         let appkit_image = NSImage::initWithCGImage_size(
             NSImage::alloc(),
             &image,
-            NSSize::new(icon.width() as f64, icon.height() as f64),
+            NSSize::new(width as f64, height as f64),
         );
 
         let app = NSApplication::sharedApplication(marker);
